@@ -1,0 +1,52 @@
+name: Weekly Models Data Update
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 'stable'
+
+      - name: Run fetcher
+        env:
+          AA_API_KEY: ${{ secrets.AA_API_KEY }}
+        run: go run src/main.go --output models.json
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          if [[ -n "$(git status --porcelain -- models.json)" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Squash history and force push
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="${GITHUB_REF_NAME}"
+
+          git checkout --orphan temp_branch
+          git add -A
+          git commit -m "Auto-update models data: $(date -u +'%Y-%m-%d')"
+          git branch -M "$BRANCH"
+          git push -f origin "$BRANCH"
