@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Leaderboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #222536;
+    --border: #2e3148;
+    --accent: #6c63ff;
+    --accent2: #00d4aa;
+    --text: #e8eaf0;
+    --text-muted: #7b80a0;
+    --text-dim: #4a4f6a;
+    --red: #ff5c7a;
+    --yellow: #ffd166;
+    --green: #06d6a0;
+    --gold: #ffd166;
+    --gold-dim: rgba(255,209,102,.12);
+    --gold-border: rgba(255,209,102,.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #1a1d27 0%, #12142a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    white-space: nowrap;
+  }
+
+  .header-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  /* ── CONTROLS ── */
+  .controls {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .search-wrap { position: relative; }
+  .search-wrap svg {
+    position: absolute;
+    left: 10px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px 7px 34px;
+    border-radius: 8px;
+    width: 220px;
+    font-size: 12px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--text); }
+
+  .label {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .divider {
+    width: 1px; height: 24px;
+    background: var(--border);
+  }
+
+  /* ── COLUMN TOGGLES ── */
+  .col-toggles {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .col-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .col-group-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    white-space: nowrap;
+    padding: 0 4px;
+  }
+
+  .col-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .2s;
+    user-select: none;
+    background: transparent;
+    position: relative;
+  }
+
+  /* Обычные метрики — выключены */
+  .col-toggle.off {
+    opacity: .45;
+    text-decoration: line-through;
+  }
+
+  /* Обычная метрика вкл */
+  .col-toggle.normal.on {
+    background: rgba(108,99,255,.1);
+    border-color: rgba(108,99,255,.4);
+    color: #a09cf7;
+  }
+  .col-toggle.normal:hover { border-color: rgba(108,99,255,.5); color: #a09cf7; opacity: 1; }
+
+  /* Ключевая метрика */
+  .col-toggle.key {
+    font-weight: 600;
+  }
+  .col-toggle.key.on {
+    background: var(--gold-dim);
+    border-color: var(--gold-border);
+    color: var(--gold);
+  }
+  .col-toggle.key:hover { border-color: rgba(255,209,102,.55); color: var(--gold); opacity: 1; }
+
+  .toggle-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background .2s;
+  }
+  .col-toggle.normal.on  .toggle-dot { background: var(--accent); }
+  .col-toggle.key.on     .toggle-dot { background: var(--gold); }
+  .col-toggle.off        .toggle-dot { background: var(--text-dim); }
+
+  .key-star {
+    font-size: 9px;
+    opacity: .8;
+  }
+
+  /* Тултип */
+  .col-toggle { --tt: attr(data-tip); }
+  .col-toggle[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e2235;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    padding: 6px 10px;
+    border-radius: 7px;
+    white-space: pre;
+    z-index: 200;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,.5);
+    min-width: 160px;
+    text-align: center;
+    text-decoration: none;
+  }
+  .col-toggle[data-tip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--border);
+    z-index: 201;
+  }
+
+  /* Легенда */
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .legend-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+  }
+
+  /* ── STATS ── */
+  .stats-bar {
+    display: flex;
+    gap: 20px;
+    padding: 10px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .stat-item { font-size: 11px; color: var(--text-muted); }
+  .stat-item b { color: var(--text); }
+
+  /* ── TABLE ── */
+  .table-wrap {
+    overflow-x: auto;
+    padding: 16px 24px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+  }
+
+  thead th {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+    user-select: none;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  thead th:hover { background: var(--surface2); color: var(--text); }
+  thead th.sorted { color: var(--accent); }
+
+  /* Ключевая колонка — подсветка заголовка */
+  thead th.key-col { border-top: 2px solid var(--gold-border); }
+  thead th.key-col.sorted { color: var(--gold); }
+
+  thead th .th-inner {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  thead th .sort-icon { font-size: 10px; opacity: .5; }
+  thead th.sorted .sort-icon { opacity: 1; }
+  thead th .key-mark { font-size: 9px; color: var(--gold); opacity: .7; margin-left: 1px; }
+
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: var(--surface2); }
+
+  tbody td {
+    padding: 8px 12px;
+    vertical-align: middle;
+    border-right: 1px solid #1e2130;
+  }
+
+  /* Слабая подсветка ячеек ключевых колонок */
+  tbody td.key-col { background: rgba(255,209,102,.025); }
+  tbody tr:hover td.key-col { background: rgba(255,209,102,.04); }
+
+  td.rank { color: var(--text-dim); font-size: 11px; text-align: center; width: 40px; }
+
+  td.model-name { font-weight: 500; max-width: 240px; }
+  td.model-name .name { color: var(--text); }
+
+  .param-badge {
+    display: inline-block;
+    background: rgba(0,212,170,.1);
+    border: 1px solid rgba(0,212,170,.3);
+    color: var(--accent2);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .date-cell { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+  .creator-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .bar-cell { min-width: 120px; }
+  .bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 60px;
+  }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+  .bar-val { font-size: 11px; color: var(--text); min-width: 36px; text-align: right; white-space: nowrap; }
+  .null-val { color: var(--text-dim); font-size: 11px; }
+
+  /* ── PAGINATION ── */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+  }
+  .page-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    transition: all .2s;
+  }
+  .page-btn:hover { border-color: var(--accent); color: var(--text); }
+  .page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .page-btn:disabled { opacity: .3; cursor: default; }
+  .page-info { color: var(--text-muted); font-size: 12px; }
+
+  .empty {
+    text-align: center; padding: 48px;
+    color: var(--text-dim); font-size: 14px;
+  }
+
+  @media (max-width: 600px) {
+    header, .controls, .col-toggles, .table-wrap, .pagination, .stats-bar {
+      padding-left: 12px; padding-right: 12px;
+    }
+    header h1 { font-size: 14px; }
+    .legend { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <rect x="2" y="14" width="4" height="8" rx="1" fill="#6c63ff"/>
+    <rect x="8" y="10" width="4" height="12" rx="1" fill="#00d4aa"/>
+    <rect x="14" y="6" width="4" height="16" rx="1" fill="#6c63ff" opacity=".7"/>
+    <rect x="20" y="2" width="4" height="20" rx="1" fill="#00d4aa" opacity=".7"/>
+  </svg>
+  <h1>LLM Open Models Leaderboard</h1>
+  <div class="header-meta" id="headerMeta">Загрузка...</div>
+</header>
+
+<div class="controls">
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" id="searchInput" placeholder="Поиск модели или создателя…" />
+  </div>
+
+  <div class="divider"></div>
+  <span class="label">Создатель:</span>
+  <select id="creatorFilter"><option value="">Все</option></select>
+
+  <div class="divider"></div>
+  <span class="label">Размер ≤</span>
+  <select id="sizeFilter">
+    <option value="">Любой</option>
+    <option value="1">1B</option>
+    <option value="3">3B</option>
+    <option value="7">7B</option>
+    <option value="14">14B</option>
+    <option value="32">32B</option>
+  </select>
+
+  <div class="divider"></div>
+  <span class="label">Строк:</span>
+  <select id="pageSizeSelect">
+    <option value="20">20</option>
+    <option value="50">50</option>
+    <option value="100">100</option>
+    <option value="999">Все</option>
+  </select>
+
+  <div class="divider"></div>
+  <button class="btn" id="resetBtn">↺ Сбросить</button>
+</div>
+
+<div class="col-toggles" id="colToggles"></div>
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="table-wrap">
+  <table id="mainTable">
+    <thead id="tableHead"></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div class="empty" id="emptyMsg" style="display:none">Ничего не найдено</div>
+</div>
+<div class="pagination" id="pagination"></div>
+
+<script>
+const DATA_URL = 'https://raw.githubusercontent.com/prolapser/artificialanalysis/refs/heads/main/models.json';
+
+// tier: 'key' = самые важные, 'normal' = остальные
+const METRICS = [
+  {
+    key: 'artificial_analysis_intelligence_index',
+    label: 'Intelligence Index', short: 'Intel.',
+    tip: '★ Главный агрегированный индекс\nобщего интеллекта модели.\nЧем выше — тем лучше.',
+    tier: 'key', max: 100, color: '#6c63ff'
+  },
+  {
+    key: 'artificial_analysis_coding_index',
+    label: 'Coding Index', short: 'Coding',
+    tip: '★ Агрегированный индекс\nспособностей к программированию.',
+    tier: 'key', max: 100, color: '#00d4aa'
+  },
+  {
+    key: 'gpqa',
+    label: 'GPQA Diamond', short: 'GPQA',
+    tip: '★ Сложные вопросы уровня PhD\nпо физике, химии, биологии.\nЛучший тест на научное мышление.',
+    tier: 'key', max: 1, color: '#ff9f43', pct: true
+  },
+  {
+    key: 'livecodebench',
+    label: 'LiveCodeBench', short: 'LiveCode',
+    tip: '★ Актуальные задачи по коду\nиз реальных соревнований.\nНе засорён обучающими данными.',
+    tier: 'key', max: 1, color: '#0abde3', pct: true
+  },
+  {
+    key: 'aime_25',
+    label: 'AIME 2025', short: 'AIME 25',
+    tip: '★ Олимпиадная математика\n(American Invitational\nMathematics Examination 2025).',
+    tier: 'key', max: 1, color: '#fd79a8', pct: true
+  },
+  // ---------- обычные ----------
+  {
+    key: 'artificial_analysis_math_index',
+    label: 'Math Index', short: 'Math',
+    tip: 'Агрегированный индекс\nматематических способностей.',
+    tier: 'normal', max: 100, color: '#ffd166'
+  },
+  {
+    key: 'mmlu_pro',
+    label: 'MMLU Pro', short: 'MMLU',
+    tip: 'Расширенный тест знаний\nпо 57 дисциплинам.\n(Professional version)',
+    tier: 'normal', max: 1, color: '#06d6a0', pct: true
+  },
+  {
+    key: 'hle',
+    label: 'Humanity\'s Last Exam', short: 'HLE',
+    tip: 'Предельно сложные вопросы\nот ведущих экспертов мира.\nТоп-модели набирают ~20%.',
+    tier: 'normal', max: 1, color: '#ee5a24', pct: true
+  },
+  {
+    key: 'scicode',
+    label: 'SciCode', short: 'SciCode',
+    tip: 'Научное программирование:\nрешение задач из реальных\nнаучных статей.',
+    tier: 'normal', max: 1, color: '#a29bfe', pct: true
+  },
+  {
+    key: 'ifbench',
+    label: 'IFBench', short: 'IFBench',
+    tip: 'Следование инструкциям:\nнасколько точно модель\nвыполняет сложные требования.',
+    tier: 'normal', max: 1, color: '#55efc4', pct: true
+  },
+  {
+    key: 'lcr',
+    label: 'LCR', short: 'LCR',
+    tip: 'LiveCodeBench Reasoning —\nрассуждения при решении\nзадач по программированию.',
+    tier: 'normal', max: 1, color: '#fdcb6e', pct: true
+  },
+  {
+    key: 'terminalbench_hard',
+    label: 'TerminalBench Hard', short: 'Terminal',
+    tip: 'Работа в терминале:\nсложные задачи в реальной\nсреде командной строки.',
+    tier: 'normal', max: 1, color: '#e17055', pct: true
+  },
+  {
+    key: 'tau2',
+    label: 'TAU2', short: 'TAU2',
+    tip: 'Агентные задачи:\nмногошаговые сценарии\nс использованием инструментов.',
+    tier: 'normal', max: 1, color: '#74b9ff', pct: true
+  },
+];
+
+const KEY_METRICS   = METRICS.filter(m => m.tier === 'key');
+const OTHER_METRICS = METRICS.filter(m => m.tier === 'normal');
+
+const CREATOR_COLORS = {
+  'openai':        { bg: 'rgba(16,163,127,.15)',  border: 'rgba(16,163,127,.4)',  text: '#10a37f' },
+  'meta':          { bg: 'rgba(24,119,242,.15)',  border: 'rgba(24,119,242,.4)',  text: '#4a90d9' },
+  'google':        { bg: 'rgba(234,67,53,.12)',   border: 'rgba(234,67,53,.4)',   text: '#ea4335' },
+  'mistral':       { bg: 'rgba(255,107,53,.15)',  border: 'rgba(255,107,53,.4)',  text: '#ff6b35' },
+  'alibaba':       { bg: 'rgba(255,106,0,.15)',   border: 'rgba(255,106,0,.4)',   text: '#ff6a00' },
+  'azure':         { bg: 'rgba(0,120,215,.15)',   border: 'rgba(0,120,215,.4)',   text: '#0078d7' },
+  'deepseek':      { bg: 'rgba(108,99,255,.15)',  border: 'rgba(108,99,255,.4)',  text: '#6c63ff' },
+  'nvidia':        { bg: 'rgba(118,185,0,.15)',   border: 'rgba(118,185,0,.4)',   text: '#76b900' },
+  'ai2':           { bg: 'rgba(0,180,216,.15)',   border: 'rgba(0,180,216,.4)',   text: '#00b4d8' },
+  'tii-uae':       { bg: 'rgba(212,175,55,.15)',  border: 'rgba(212,175,55,.4)',  text: '#d4af37' },
+  'nous-research': { bg: 'rgba(200,100,200,.15)', border: 'rgba(200,100,200,.4)', text: '#c864c8' },
+};
+
+function creatorStyle(slug) {
+  return CREATOR_COLORS[slug] || { bg: 'rgba(120,120,140,.15)', border: 'rgba(120,120,140,.4)', text: '#a0a0b0' };
+}
+
+let allData  = [];
+let filtered = [];
+let sortKey  = 'artificial_analysis_intelligence_index';
+let sortDir  = -1;
+let page     = 1;
+let pageSize = 20;
+let search   = '';
+let creatorFilter = '';
+let sizeFilter    = '';
+let visibleCols   = new Set(METRICS.map(m => m.key));
+
+// ── LOAD ──────────────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const r = await fetch(DATA_URL);
+    allData = await r.json();
+    init();
+  } catch(e) {
+    const em = document.getElementById('emptyMsg');
+    em.textContent = 'Ошибка загрузки данных';
+    em.style.display = '';
+  }
+}
+
+function init() {
+  buildCreatorFilter();
+  buildColToggles();
+  buildHeader();
+  applyFilters();
+  document.getElementById('headerMeta').textContent = `${allData.length} моделей`;
+}
+
+// ── CREATOR FILTER ────────────────────────────────────────────────────────────
+function buildCreatorFilter() {
+  const sel = document.getElementById('creatorFilter');
+  const creators = [...new Set(allData.map(d => d.model_creator.name))].sort();
+  creators.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    sel.appendChild(o);
+  });
+}
+
+// ── COL TOGGLES ───────────────────────────────────────────────────────────────
+function buildColToggles() {
+  const wrap = document.getElementById('colToggles');
+  wrap.innerHTML = '';
+
+  // --- ключевые ---
+  const gKey = document.createElement('div');
+  gKey.className = 'col-group';
+  gKey.innerHTML = '<span class="col-group-label">★ Ключевые</span>';
+
+  KEY_METRICS.forEach(m => {
+    gKey.appendChild(makeToggle(m));
+  });
+  wrap.appendChild(gKey);
+
+  // разделитель
+  const sep = document.createElement('div');
+  sep.style.cssText = 'width:1px;height:24px;background:var(--border);margin:0 4px;align-self:center';
+  wrap.appendChild(sep);
+
+  // --- остальные ---
+  const gOther = document.createElement('div');
+  gOther.className = 'col-group';
+  gOther.innerHTML = '<span class="col-group-label">Дополнительные</span>';
+
+  OTHER_METRICS.forEach(m => {
+    gOther.appendChild(makeToggle(m));
+  });
+  wrap.appendChild(gOther);
+
+  // легенда
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  legend.innerHTML = `
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--gold)"></div>
+      <span>Ключевые метрики</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent)"></div>
+      <span>Дополнительные</span>
+    </div>
+  `;
+  wrap.appendChild(legend);
+}
+
+function makeToggle(m) {
+  const btn = document.createElement('div');
+  btn.className = `col-toggle ${m.tier} on`;
+  btn.dataset.key = m.key;
+  btn.dataset.tip = m.tip;
+
+  const dot  = document.createElement('span');
+  dot.className = 'toggle-dot';
+
+  const lbl = document.createElement('span');
+  lbl.textContent = m.short;
+
+  if (m.tier === 'key') {
+    const star = document.createElement('span');
+    star.className = 'key-star';
+    star.textContent = '★';
+    btn.appendChild(dot);
+    btn.appendChild(lbl);
+    btn.appendChild(star);
+  } else {
+    btn.appendChild(dot);
+    btn.appendChild(lbl);
+  }
+
+  btn.addEventListener('click', () => {
+    const isOn = !btn.classList.contains('off');
+    if (isOn) {
+      if (visibleCols.size > 1) {
+        visibleCols.delete(m.key);
+        btn.classList.add('off');
+        btn.classList.remove('on');
+      }
+    } else {
+      visibleCols.add(m.key);
+      btn.classList.remove('off');
+      btn.classList.add('on');
+    }
+    buildHeader();
+    renderTable();
+  });
+
+  return btn;
+}
+
+// ── HEADER ────────────────────────────────────────────────────────────────────
+function buildHeader() {
+  const thead = document.getElementById('tableHead');
+  const staticCols = [
+    { key: '__rank',        label: '#',         sortable: false },
+    { key: 'name',          label: 'Модель',    sortable: true  },
+    { key: 'model_creator', label: 'Создатель', sortable: true  },
+    { key: 'parameter_size',label: 'Параметры', sortable: true  },
+    { key: 'release_date',  label: 'Релиз',     sortable: true  },
+  ];
+  const visMet = METRICS.filter(m => visibleCols.has(m.key));
+
+  thead.innerHTML = '';
+  const tr = document.createElement('tr');
+
+  [...staticCols, ...visMet].forEach(col => {
+    const th  = document.createElement('th');
+    const met = METRICS.find(m => m.key === col.key);
+    const isKey    = met?.tier === 'key';
+    const isSorted = sortKey === col.key;
+
+    if (isKey)    th.classList.add('key-col');
+    if (isSorted) th.classList.add('sorted');
+
+    const label = met ? met.short : col.label;
+    const icon  = col.sortable === false ? ''
+                : isSorted ? (sortDir === -1 ? ' ↓' : ' ↑') : ' ⇅';
+    const keyMark = isKey ? '<span class="key-mark">★</span>' : '';
+
+    th.innerHTML = `<div class="th-inner">${label}${keyMark}<span class="sort-icon">${icon}</span></div>`;
+    if (met) th.title = met.label;
+
+    if (col.sortable !== false) {
+      th.addEventListener('click', () => {
+        if (sortKey === col.key) sortDir *= -1;
+        else { sortKey = col.key; sortDir = -1; }
+        buildHeader();
+        applyFilters();
+      });
+    } else {
+      th.style.cursor = 'default';
+    }
+    tr.appendChild(th);
+  });
+  thead.appendChild(tr);
+}
+
+// ── FILTERS & SORT ────────────────────────────────────────────────────────────
+function applyFilters() {
+  filtered = allData.filter(d => {
+    if (search && !d.name.toLowerCase().includes(search) &&
+        !d.model_creator.name.toLowerCase().includes(search)) return false;
+    if (creatorFilter && d.model_creator.name !== creatorFilter) return false;
+    if (sizeFilter && d.parameter_size > parseFloat(sizeFilter)) return false;
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    let av, bv;
+    if (sortKey === 'name')          { return a.name.localeCompare(b.name) * sortDir; }
+    if (sortKey === 'model_creator') { return a.model_creator.name.localeCompare(b.model_creator.name) * sortDir; }
+    if (sortKey === 'release_date')  { return (a.release_date||'').localeCompare(b.release_date||'') * sortDir; }
+    if (sortKey === 'parameter_size'){ av = a.parameter_size||0; bv = b.parameter_size||0; }
+    else                             { av = a.evaluations[sortKey]; bv = b.evaluations[sortKey]; }
+    const an = av === null || av === undefined ? -Infinity : av;
+    const bn = bv === null || bv === undefined ? -Infinity : bv;
+    return (an - bn) * sortDir;
+  });
+
+  page = 1;
+  updateStats();
+  renderTable();
+  renderPagination();
+}
+
+// ── STATS BAR ─────────────────────────────────────────────────────────────────
+function updateStats() {
+  const bar = document.getElementById('statsBar');
+  const getAvg = key => {
+    const vals = filtered.map(d => d.evaluations[key]).filter(v => v !== null && v !== undefined);
+    return vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : null;
+  };
+  let html = `<div class="stat-item">Найдено: <b>${filtered.length}</b></div>`;
+  KEY_METRICS.forEach(m => {
+    const avg = getAvg(m.key);
+    if (avg !== null) {
+      const val = m.pct ? (avg * 100).toFixed(1) + '%' : avg.toFixed(1);
+      html += `<div class="stat-item">${m.short} avg: <b>${val}</b></div>`;
+    }
+  });
+  bar.innerHTML = html;
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────────────
+function getBarColor(ratio) {
+  if (ratio >= .75) return '#06d6a0';
+  if (ratio >= .5)  return '#ffd166';
+  if (ratio >= .25) return '#ff9f43';
+  return '#ff5c7a';
+}
+
+function formatVal(val, metric) {
+  if (val === null || val === undefined) return null;
+  return metric.pct ? (val * 100).toFixed(1) + '%' : val.toFixed(1);
+}
+
+function renderTable() {
+  const tbody   = document.getElementById('tableBody');
+  const empty   = document.getElementById('emptyMsg');
+
+  if (!filtered.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  const start   = (page - 1) * pageSize;
+  const rows    = pageSize >= 999 ? filtered : filtered.slice(start, start + pageSize);
+  const visMet  = METRICS.filter(m => visibleCols.has(m.key));
+
+  // Глобальный максимум по отфильтрованным для нормировки баров
+  const metricMaxes = {};
+  METRICS.forEach(m => {
+    const vals = filtered.map(d => d.evaluations[m.key]).filter(v => v !== null && v !== undefined);
+    metricMaxes[m.key] = vals.length ? Math.max(...vals) : 1;
+  });
+
+  tbody.innerHTML = '';
+  rows.forEach((d, i) => {
+    const tr  = document.createElement('tr');
+    const cs  = creatorStyle(d.model_creator.slug);
+    const rank = start + i + 1;
+
+    let html = `
+      <td class="rank">${rank}</td>
+      <td class="model-name"><div class="name">${escHtml(d.name)}</div></td>
+      <td>
+        <span class="creator-badge"
+          style="background:${cs.bg};border:1px solid ${cs.border};color:${cs.text}">
+          ${escHtml(d.model_creator.name)}
+        </span>
+      </td>
+      <td><span class="param-badge">${d.parameter_size}B</span></td>
+      <td class="date-cell">${d.release_date || '—'}</td>
+    `;
+
+    visMet.forEach(m => {
+      const val      = d.evaluations[m.key];
+      const isKey    = m.tier === 'key';
+      const cellCls  = isKey ? 'bar-cell key-col' : 'bar-cell';
+
+      if (val === null || val === undefined) {
+        html += `<td class="${cellCls}"><span class="null-val">—</span></td>`;
+      } else {
+        const localMax = metricMaxes[m.key] || 1;
+        const ratio    = val / localMax;
+        const barColor = isKey
+          ? (ratio >= .75 ? '#06d6a0' : ratio >= .5 ? '#ffd166' : ratio >= .25 ? '#ff9f43' : '#ff5c7a')
+          : getBarColor(ratio);
+        const display  = formatVal(val, m);
+        html += `
+          <td class="${cellCls}">
+            <div class="bar-wrap">
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(ratio*100).toFixed(1)}%;background:${barColor}${isKey?';box-shadow:0 0 4px '+barColor+'66':''}"></div>
+              </div>
+              <span class="bar-val" ${isKey ? 'style="font-weight:600"' : ''}>${display}</span>
+            </div>
+          </td>`;
+      }
+    });
+
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── PAGINATION ────────────────────────────────────────────────────────────────
+function renderPagination() {
+  const wrap = document.getElementById('pagination');
+  if (pageSize >= 999) { wrap.innerHTML = ''; return; }
+  const total = Math.ceil(filtered.length / pageSize);
+  if (total <= 1)      { wrap.innerHTML = ''; return; }
+
+  let html = `<button class="page-btn" ${page===1?'disabled':''} id="prevBtn">‹</button>`;
+
+  const pages = [];
+  for (let p = 1; p <= total; p++) {
+    if (p === 1 || p === total || (p >= page - 2 && p <= page + 2)) pages.push(p);
+    else if (pages[pages.length-1] !== '…') pages.push('…');
+  }
+  pages.forEach(p => {
+    if (p === '…') html += `<span class="page-info">…</span>`;
+    else           html += `<button class="page-btn${p===page?' active':''}" data-p="${p}">${p}</button>`;
+  });
+
+  html += `<button class="page-btn" ${page===total?'disabled':''} id="nextBtn">›</button>`;
+  html += `<span class="page-info" style="margin-left:8px">${filtered.length} записей</span>`;
+  wrap.innerHTML = html;
+
+  wrap.querySelector('#prevBtn')?.addEventListener('click', () => { page--; renderTable(); renderPagination(); });
+  wrap.querySelector('#nextBtn')?.addEventListener('click', () => { page++; renderTable(); renderPagination(); });
+  wrap.querySelectorAll('[data-p]').forEach(btn => {
+    btn.addEventListener('click', () => { page = +btn.dataset.p; renderTable(); renderPagination(); });
+  });
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── EVENTS ───────────────────────────────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', e => {
+  search = e.target.value.toLowerCase().trim(); applyFilters();
+});
+document.getElementById('creatorFilter').addEventListener('change', e => {
+  creatorFilter = e.target.value; applyFilters();
+});
+document.getElementById('sizeFilter').addEventListener('change', e => {
+  sizeFilter = e.target.value; applyFilters();
+});
+document.getElementById('pageSizeSelect').addEventListener('change', e => {
+  pageSize = parseInt(e.target.value); page = 1; renderTable(); renderPagination();
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  document.getElementById('searchInput').value    = '';
+  document.getElementById('creatorFilter').value  = '';
+  document.getElementById('sizeFilter').value     = '';
+  document.getElementById('pageSizeSelect').value = '20';
+  search = ''; creatorFilter = ''; sizeFilter = ''; pageSize = 20;
+  sortKey = 'artificial_analysis_intelligence_index'; sortDir = -1;
+  visibleCols = new Set(METRICS.map(m => m.key));
+  document.querySelectorAll('.col-toggle').forEach(b => { b.classList.remove('off'); b.classList.add('on'); });
+  buildHeader(); applyFilters();
+});
+
+loadData();
+</script>
+</body>
+</html>
